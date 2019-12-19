@@ -84,13 +84,10 @@ var TOPK = 10;
 
 var predictionThreshold = 0.98;
 
-var words = ["alexa", "hello", "other"];
-// var words = ["alexa", "hello", "what is", "the weather", "the time",
-//"add","eggs","to the list","five","feet","in meters","tell me","a joke", "bye", "other"]
-
+var words = ["hello", "thank you", "yes", "no", "sorry", "help", "stop recording"];
 
 // words from above array which act as terminal words in a sentence
-var endWords = ["hello"];
+var endWords = ["stop recording"];
 
 var LaunchModal = function LaunchModal() {
   var _this = this;
@@ -166,7 +163,7 @@ var Main = function () {
 
     this.createAudioBtn();
 
-    this.createTrainingBtn();
+    this.createPredictBtn();
 
     // this.createButtonList(false);
 
@@ -187,7 +184,9 @@ var Main = function () {
       div.appendChild(predButton);
 
       predButton.addEventListener('mousedown', function () {
+        _this3.startWebcam();
         console.log("start predicting");
+
         var exampleCount = _this3.knn.getClassExampleCount();
 
         // check if training has been done
@@ -195,19 +194,13 @@ var Main = function () {
 
           // if wake word has not been trained
           if (exampleCount[0] == 0) {
-            alert('You haven\'t added examples for the wake word ALEXA');
-            return;
-          }
-
-          // if the catchall phrase other hasnt been trained
-          if (exampleCount[words.length - 1] == 0) {
-            alert('You haven\'t added examples for the catchall sign OTHER.\n\nCapture yourself in idle states e.g hands by your side, empty background etc.\n\nThis prevents words from being erroneously detected.');
+            console.log("no words were trained");
             return;
           }
 
           // check if atleast one terminal word has been trained
           if (!_this3.areTerminalWordsTrained(exampleCount)) {
-            alert('Add examples for atleast one terminal word.\n\nA terminal word is a word that appears at the end of a query and is necessary to trigger transcribing. e.g What is *the weather*\n\nYour terminal words are: ' + endWords);
+            console.log("no terminal word trained");
             return;
           }
 
@@ -216,8 +209,7 @@ var Main = function () {
           _this3.textLine.innerText = "Sign your query";
           _this3.startPredicting();
         } else {
-          alert('You haven\'t added any examples yet.\n\nPress and hold on the "Add Example" button next to each word while performing the sign in front of the webcam.');
-        }
+            console.log("no words were trained");        }
       });
     }
   }, {
@@ -233,20 +225,6 @@ var Main = function () {
       div.appendChild(trainButton);
 
       trainButton.addEventListener('mousedown', function () {
-
-        // check if user has added atleast one terminal word
-        if (words.length > 3 && endWords.length == 1) {
-          console.log('no terminal word added');
-          alert('You have not added any terminal words.\nCurrently the only query you can make is "Alexa, hello".\n\nA terminal word is a word that will appear in the end of your query.\nIf you intend to ask "What\'s the weather" & "What\'s the time" then add "the weather" and "the time" as terminal words. "What\'s" on the other hand is not a terminal word.');
-          return;
-        }
-
-        if (words.length == 3 && endWords.length == 1) {
-          var proceed = confirm("You have not added any words.\n\nThe only query you can currently make is: 'Alexa, hello'");
-
-          if (!proceed) return;
-        }
-
         _this4.startWebcam();
 
         console.log("ready to train");
@@ -594,29 +572,17 @@ var TextToSpeech = function () {
     value: function speak(word) {
       var _this10 = this;
 
-      if (word == 'alexa') {
+      if (word == 'hello') {
         console.log("clear para");
         this.clearPara(true);
 
         setTimeout(function () {
-          // if no query detected after alexa is signed
+          // if no query detected after hello is signed
           if (_this10.currentPredictedWords.length == 1) {
             _this10.clearPara(false);
           }
         }, this.waitTimeForQuery);
       }
-
-      if (word != 'alexa' && this.currentPredictedWords.length == 0) {
-        console.log("first word should be alexa");
-        console.log(word);
-        return;
-      }
-
-      // if(endWords.includes(word) && this.currentPredictedWords.length == 1 && (word != "hello" && word != "bye")){
-      //   console.log("end word detected early")
-      //   console.log(word)
-      //   return;
-      // }
 
       if (this.currentPredictedWords.includes(word)) {
         // prevent word from being detected repeatedly in phrase

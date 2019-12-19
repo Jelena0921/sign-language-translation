@@ -68,7 +68,11 @@ textarea {
   border:none;
   box-shadow:0px 0px 5px 1px rgba(0,0,0,0.1);
   padding:30px;
+}
 
+#interimText {
+  font-family: 'Ubuntu', Helvetica, Arial, sans-serif;
+  font-size: 30px;
 }
 
 .lables {
