@@ -1,10 +1,7 @@
 // sudo http-server ./ -p 8888
 // google-chrome --kiosk --app=http://localhost:8888
-
-
-import * as kic from 'https://unpkg.com/deeplearn-knn-image-classifier';
-// import * as dl from 'https://unpkg.com/deeplearn@latest';
-
+import * as kic from 'deeplearn-knn-image-classifier';
+import * as dl from 'deeplearn';
 
 // Webcam Image size. Must be 227. 
 const IMAGE_SIZE = 227;
@@ -43,7 +40,6 @@ class LaunchModal {
 class Main {
   constructor(){
     // Initiate variables
-    alert("hello");
     this.infoTexts = [];
     this.training = -1; // -1 when no class is being trained
     this.videoPlaying = false;
@@ -81,7 +77,6 @@ class Main {
 
     // show modal window
     // let modal = new LaunchModal()
-
     // this.updateExampleCount()
 
     document.getElementById("status").style.display = "none"
@@ -132,27 +127,27 @@ class Main {
       if(Math.max(...exampleCount) > 0){
 
         // if wake word has not been trained
-        // if(exampleCount[0] == 0){
-        //   alert(
-        //     `You haven't added examples for the wake word ALEXA`
-        //     )
-        //   return
-        // }
+        if(exampleCount[0] == 0){
+          alert(
+            `You haven't added examples for the wake word ALEXA`
+            )
+          return
+        }
 
-        // // if the catchall phrase other hasnt been trained
-        // if(exampleCount[words.length-1] == 0){
-        //   alert(
-        //     `You haven't added examples for the catchall sign OTHER.\n\nCapture yourself in idle states e.g hands by your side, empty background etc.\n\nThis prevents words from being erroneously detected.`)
-        //   return
-        // }
+        // if the catchall phrase other hasnt been trained
+        if(exampleCount[words.length-1] == 0){
+          alert(
+            `You haven't added examples for the catchall sign OTHER.\n\nCapture yourself in idle states e.g hands by your side, empty background etc.\n\nThis prevents words from being erroneously detected.`)
+          return
+        }
 
-        // // check if atleast one terminal word has been trained
-        // if(!this.areTerminalWordsTrained(exampleCount)){
-        //   alert(
-        //     `Add examples for atleast one terminal word.\n\nA terminal word is a word that appears at the end of a query and is necessary to trigger transcribing. e.g What is *the weather*\n\nYour terminal words are: ${endWords}`
-        //     )
-        //   return
-        // }
+        // check if atleast one terminal word has been trained
+        if(!this.areTerminalWordsTrained(exampleCount)){
+          alert(
+            `Add examples for atleast one terminal word.\n\nA terminal word is a word that appears at the end of a query and is necessary to trigger transcribing. e.g What is *the weather*\n\nYour terminal words are: ${endWords}`
+            )
+          return
+        }
 
         this.trainingListDiv.style.display = "none"
         this.textLine.classList.remove("intro-steps")
@@ -339,29 +334,29 @@ class Main {
     cancelAnimationFrame(this.timer);
   }
   
-  // train(){
-  //   if(this.videoPlaying){
-  //     // Get image data from video element
-  //     const image = dl.fromPixels(this.video);
+  train(){
+    if(this.videoPlaying){
+      // Get image data from video element
+      const image = dl.fromPixels(this.video);
       
-  //     // Train class if one of the buttons is held down
-  //     if(this.training != -1){
-  //       // Add current image to classifier
-  //       this.knn.addImage(image, this.training)
-  //     }
+      // Train class if one of the buttons is held down
+      if(this.training != -1){
+        // Add current image to classifier
+        this.knn.addImage(image, this.training)
+      }
 
-  //     const exampleCount = this.knn.getClassExampleCount()
+      const exampleCount = this.knn.getClassExampleCount()
 
-  //     if(Math.max(...exampleCount) > 0){
-  //       for(let i=0;i<words.length;i++){
-  //         if(exampleCount[i] > 0){
-  //           this.infoTexts[i].innerText = ` ${exampleCount[i]} examples`
-  //         }
-  //       }
-  //     }
-  //   }
-  //   this.timer = requestAnimationFrame(this.train.bind(this));
-  // }
+      if(Math.max(...exampleCount) > 0){
+        for(let i=0;i<words.length;i++){
+          if(exampleCount[i] > 0){
+            this.infoTexts[i].innerText = ` ${exampleCount[i]} examples`
+          }
+        }
+      }
+    }
+    this.timer = requestAnimationFrame(this.train.bind(this));
+  }
 
   startPredicting(){
     // stop training
@@ -383,49 +378,49 @@ class Main {
     cancelAnimationFrame(this.pred)
   }
 
-  // predict(){
-  //   this.now = Date.now()
-  //   this.elapsed = this.now - this.then
+  predict(){
+    this.now = Date.now()
+    this.elapsed = this.now - this.then
 
-  //   if(this.elapsed > this.fpsInterval){
+    if(this.elapsed > this.fpsInterval){
 
-  //     this.then = this.now - (this.elapsed % this.fpsInterval)
+      this.then = this.now - (this.elapsed % this.fpsInterval)
 
-  //     if(this.videoPlaying){
-  //       const exampleCount = this.knn.getClassExampleCount();
+      if(this.videoPlaying){
+        const exampleCount = this.knn.getClassExampleCount();
 
-  //       const image = dl.fromPixels(this.video);
+        const image = dl.fromPixels(this.video);
 
-  //       if(Math.max(...exampleCount) > 0){
-  //         this.knn.predictClass(image)
-  //         .then((res) => {
-  //           for(let i=0;i<words.length;i++){
+        if(Math.max(...exampleCount) > 0){
+          this.knn.predictClass(image)
+          .then((res) => {
+            for(let i=0;i<words.length;i++){
 
-  //             // if matches & is above threshold & isnt same as prev prediction
-  //             // and is not the last class which is a catch all class
-  //             if(res.classIndex == i 
-  //               && res.confidences[i] > predictionThreshold 
-  //               && res.classIndex != this.previousPrediction
-  //               && res.classIndex != words.length-1){
+              // if matches & is above threshold & isnt same as prev prediction
+              // and is not the last class which is a catch all class
+              if(res.classIndex == i 
+                && res.confidences[i] > predictionThreshold 
+                && res.classIndex != this.previousPrediction
+                && res.classIndex != words.length-1){
 
-  //               this.tts.speak(words[i])
+                this.tts.speak(words[i])
 
-  //               // set previous prediction so it doesnt get called again
-  //               this.previousPrediction = res.classIndex;
+                // set previous prediction so it doesnt get called again
+                this.previousPrediction = res.classIndex;
 
 
-  //             }
-  //           }
-  //         })
-  //         .then(() => image.dispose())
-  //       } else {
-  //         image.dispose()
-  //       }
-  //     }
-  //   }
+              }
+            }
+          })
+          .then(() => image.dispose())
+        } else {
+          image.dispose()
+        }
+      }
+    }
 
-  //   this.pred = requestAnimationFrame(this.predict.bind(this))
-  // }
+    this.pred = requestAnimationFrame(this.predict.bind(this))
+  }
 
   setStatusText(status){
     document.getElementById("status").style.display = "block"
