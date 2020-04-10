@@ -1,232 +1,193 @@
-// sudo http-server ./ -p 8888
-// google-chrome --kiosk --app=http://localhost:8888
 import * as kic from 'deeplearn-knn-image-classifier';
 import * as dl from 'deeplearn';
 
 // Webcam Image size. Must be 227. 
 const IMAGE_SIZE = 227;
 // K value for KNN
-const TOPK = 10;
+const TOPK = 15;
+const predictionThreshold = 0.9;
 
-const predictionThreshold = 0.98
+// Number of frames per second (used to restrict prediction rate)
+const FPS = 5; 
+const FPS_INTERVAL = 1000/FPS
 
-var words = ["hello", "thank you", "yes", "no", "sorry", "help", "stop recording"];
-
-// words from above array which act as terminal words in a sentence
-var endWords = ["stop recording"];
-
-class LaunchModal {
-  constructor(){
-    this.modalWindow = document.getElementById('launchModal')
-
-    this.closeBtn = document.getElementById('close-modal')
-
-    this.closeBtn.addEventListener('click', (e) => {
-      this.modalWindow.style.display = "none"
-    })
-
-    window.addEventListener('click', (e) => {
-      if(e.target == this.modalWindow){
-        this.modalWindow.style.display = "none"
-      }
-    })
-
-    this.modalWindow.style.display = "block"
-    this.modalWindow.style.zIndex = 500
-  }
-}
-
+// The vocabulary, add/remove desired words here
+var words = ["Hello", "Thank you!", "Nice", "Good", "Morning", "Name", "Yes", "No", "Tea"];
 
 class Main {
   constructor(){
-    // Initiate variables
-    this.infoTexts = [];
-    this.training = -1; // -1 when no class is being trained
+    this.knn = null
     this.videoPlaying = false;
-
+    this.videoTrainingPlaying = false;
     this.previousPrediction = -1
+    this.training = -1; 
+    this.infoTexts = [];
     this.currentPredictedWords = []
 
     // variables to restrict prediction rate
     this.now;
     this.then = Date.now()
     this.startTime = this.then;
-    this.fps = 5; //framerate - number of prediction per second
-    this.fpsInterval = 1000/(this.fps); 
     this.elapsed = 0;
 
-    this.trainingListDiv = document.getElementById("training-list")
-    this.exampleListDiv = document.getElementById("example-list")
-    
-    this.knn = null
-
-    this.textLine = document.getElementById("text")
-    
-    // Get video element that will contain the webcam image
+    this.trainingModal = document.getElementById("launchModal");
+    this.trainingListDiv = document.getElementById("training-list");
+    this.signText = document.getElementById("signText");
+    this.textLine = document.getElementById("text")    
     this.video = document.getElementById('video');
-
+    this.trainingVideo = document.getElementById('training-video');
     this.addWordForm = document.getElementById("add-word")
-
-    this.statusText = document.getElementById("status-text")
 
     this.video.addEventListener('mousedown', () => {
       // click on video to go back to training buttons
       main.pausePredicting();
-      this.trainingListDiv.style.display = "block"
     })
+    this.loadKNN();
 
-    // show modal window
-    // let modal = new LaunchModal()
-    // this.updateExampleCount()
+    // launch the training modal
+    this.launchTrainingModal(true);
 
-    document.getElementById("status").style.display = "none"
-
-    this.createAudioBtn();
-
+    // create "Start Sign Interpretation" button
     this.createPredictBtn();
-
-    // load text to speech
-    this.tts = new TextToSpeech()
-
-  }
-
-  createAudioBtn() {
-    var div = document.getElementById("audio-btn");
-    div.innerHTML = "";
-
-    var audioButton = document.createElement('button');
-    audioButton.innerText = "Start Speech Interpretation";
-    div.appendChild(audioButton);
-
-    audioButton.addEventListener('mousedown', () => {
-
-      var p = document.createElement('p');
-      p.innerText = 'Speak';
-
-      this.setStatusText("Status: Waiting for Response");
-
-      var stt = new SpeechToText();
-      stt.SpeechToText();
-    });
-  }
-
-  createPredictBtn(){
-    var div = document.getElementById("action-btn")
-    div.innerHTML = ""
-    const predButton = document.createElement('button')
-
-    predButton.innerText = "Start Predicting >>>"
-    div.appendChild(predButton);
-
-    predButton.addEventListener('mousedown', () => {
-      this.startWebcam();
-      console.log("start predicting")
-      const exampleCount = this.knn.getClassExampleCount()
-
-      // check if training has been done
-      if(Math.max(...exampleCount) > 0){
-
-        // if wake word has not been trained
-        if(exampleCount[0] == 0){
-          alert(
-            `You haven't added examples for the wake word ALEXA`
-            )
-          return
-        }
-
-        // if the catchall phrase other hasnt been trained
-        if(exampleCount[words.length-1] == 0){
-          alert(
-            `You haven't added examples for the catchall sign OTHER.\n\nCapture yourself in idle states e.g hands by your side, empty background etc.\n\nThis prevents words from being erroneously detected.`)
-          return
-        }
-
-        // check if atleast one terminal word has been trained
-        if(!this.areTerminalWordsTrained(exampleCount)){
-          alert(
-            `Add examples for atleast one terminal word.\n\nA terminal word is a word that appears at the end of a query and is necessary to trigger transcribing. e.g What is *the weather*\n\nYour terminal words are: ${endWords}`
-            )
-          return
-        }
-
-        this.trainingListDiv.style.display = "none"
-        this.textLine.classList.remove("intro-steps")
-        this.textLine.innerText = "Sign your query"
-        this.startPredicting()
-      } else {
-        // alert(
-        //   `You haven't added any examples yet.\n\nPress and hold on the "Add Example" button next to each word while performing the sign in front of the webcam.`
-        //   )
-      }
-    })
+    // create "Train" button, that opens the training modal if closed
+    this.createTrainingBtn();
+    // create "Start Speech Interpretation" button
+    this.createAudioBtn();
   }
 
   createTrainingBtn(){
-    var div = document.getElementById("action-btn")
+    var div = document.getElementById("training-btn")
     div.innerHTML = ""
 
     const trainButton = document.createElement('button')
-    trainButton.innerText = "Training >>>"
+    trainButton.innerText = "Train";
     div.appendChild(trainButton);
 
-
     trainButton.addEventListener('mousedown', () => {
-
-      // check if user has added atleast one terminal word
-      if(words.length > 3 && endWords.length == 1){
-        console.log('no terminal word added')
-        alert(`You have not added any terminal words.\nCurrently the only query you can make is "Alexa, hello".\n\nA terminal word is a word that will appear in the end of your query.\nIf you intend to ask "What's the weather" & "What's the time" then add "the weather" and "the time" as terminal words. "What's" on the other hand is not a terminal word.`)
-        return
-      }
-
-      if(words.length == 3 && endWords.length ==1){
-        var proceed = confirm("You have not added any words.\n\nThe only query you can currently make is: 'Alexa, hello'")
-
-        if(!proceed) return
-      }
-
-      this.startWebcam()
-
-      console.log("ready to train")
-      this.createButtonList(true)
-      this.addWordForm.innerHTML = ''
-      let p = document.createElement('p')
-      p.innerText = `Perform the appropriate sign while holding down the ADD EXAMPLE button near each word to capture atleast 30 training examples for each word
-
-      For OTHER, capture yourself in an idle state to act as a catchall sign. e.g hands down by your side`
-      this.addWordForm.appendChild(p)
-      
-      this.loadKNN()
-
-      this.createPredictBtn()
-
-      this.textLine.innerText = "Step 2: Train"
-
-      let subtext = document.createElement('span')
-      subtext.innerHTML = "<br/>Time to associate signs with the words" 
-      subtext.classList.add('subtext')
-      this.textLine.appendChild(subtext)
-
+      this.launchTrainingModal(false)
     })
   }
 
-  areTerminalWordsTrained(exampleCount){
+  launchTrainingModal(first) {
+    this.trainingModal.style.display = "block"
 
-    var totalTerminalWordsTrained = 0
+    // launch the webcam for training
+    this.startTrainingWebcam();
 
-    for(var i=0;i<words.length;i++){
-      if(endWords.includes(words[i])){
-        if(exampleCount[i] > 0){
-          totalTerminalWordsTrained+=1
+    if (first){
+      // create the list of words from vocabulary
+      for(let i=0;i<words.length; i++){
+        this.createButton(i);
+      }
+    }
+  }
+
+  createButton(i){
+    const div = document.createElement('div');
+    this.trainingListDiv.appendChild(div);
+    
+    // Create Word Text
+    const wordText = document.createElement('span');
+    wordText.innerText = words[i].toUpperCase()+" "
+    wordText.style.fontWeight = "bold"
+    div.appendChild(wordText);
+
+    // Create training button
+    const addExampleButton = document.createElement('button')
+    addExampleButton.classList.add("addBtn");
+    addExampleButton.innerText = "Train"//"Train " + words[i].toUpperCase()
+    div.appendChild(addExampleButton);
+
+    addExampleButton.addEventListener('mousedown', () => this.training = i);
+    addExampleButton.addEventListener('mouseup', () => this.training = -1);
+
+    // Create clear button to remove all training examples
+    const clearButton = document.createElement('button')
+    clearButton.classList.add("clearBtn");
+    clearButton.innerText = "Clear"//`Clear ${words[i].toUpperCase()}`
+    div.appendChild(clearButton);
+
+    clearButton.addEventListener('mousedown', () => {
+      this.knn.clearClass(i)
+      this.infoTexts[i].innerText = " 0 trained frames"
+    })
+    
+    // Create info text
+    const infoText = document.createElement('span')
+    infoText.innerText = " 0 trained frames";
+    div.appendChild(infoText);
+    this.infoTexts.push(infoText);
+  }
+
+  loadKNN(){
+    this.knn = new kic.KNNImageClassifier(words.length, TOPK);
+    // Load knn model
+    this.knn.load()
+    .then(() => this.startTraining()); 
+  }
+
+  startTraining(){
+    if (this.timer) {
+      this.stopTraining();
+    }
+    var promise = this.trainingVideo.play();
+
+    if(promise !== undefined){
+      promise.then(_ => {
+        console.log("Autoplay started")
+      }).catch(error => {
+        console.log("Autoplay prevented")
+      })
+    }
+    this.timer = requestAnimationFrame(this.train.bind(this));
+  }
+  
+  stopTraining(){
+    this.trainingVideo.pause();
+    cancelAnimationFrame(this.timer);
+  }
+  
+  train(){
+    if(this.videoTrainingPlaying){
+      // Get image data from video
+      const image = dl.fromPixels(this.trainingVideo);
+      
+      // Train class if one of the buttons is held down
+      if(this.training != -1){
+        // Add current image to classifier
+        this.knn.addImage(image, this.training)
+      }
+      const exampleCount = this.knn.getClassExampleCount()
+
+      if(Math.max(...exampleCount) > 0){
+        for(let i=0;i<words.length;i++){
+          if(exampleCount[i] > 0){
+            this.infoTexts[i].innerText = ` ${exampleCount[i]} trained frames`
+          }
         }
       }
     }
+    this.timer = requestAnimationFrame(this.train.bind(this));
+  }
 
-    return totalTerminalWordsTrained
+  updateExampleCount(){
+    var p = document.getElementById('count')
+    p.innerText = `Training: ${words.length} words`
+  }
+
+  startTrainingWebcam(){
+    navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}, audio: false})
+    .then((stream) => {
+      this.trainingVideo.srcObject = stream;
+      this.trainingVideo.width = IMAGE_SIZE;
+      this.trainingVideo.height = IMAGE_SIZE;
+
+      this.trainingVideo.addEventListener('playing', ()=> this.videoTrainingPlaying = true);
+      this.trainingVideo.addEventListener('paused', ()=> this.videoTrainingPlaying = false);
+    })
   }
 
   startWebcam(){
-    // Setup webcam
     navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}, audio: false})
     .then((stream) => {
       this.video.srcObject = stream;
@@ -238,143 +199,30 @@ class Main {
     })
   }
 
-  loadKNN(){
+  createPredictBtn(){
+    var div = document.getElementById("action-btn")
+    div.innerHTML = ""
+    const predButton = document.createElement('button')
 
-    this.knn = new kic.KNNImageClassifier(words.length, TOPK);
+    predButton.innerText = "Start Sign Interpretation";
+    div.appendChild(predButton);
 
-    // Load knn model
-    this.knn.load()
-    .then(() => this.startTraining()); 
-  }
-
-  // updateExampleCount(){
-  //   var p = document.getElementById('count')
-  //   p.innerText = `Training: ${words.length} words`
-  // }
-
-  createButtonList(showBtn){
-    //showBtn - true: show training btns, false:show only text
-
-    // Clear List
-    this.exampleListDiv.innerHTML = ""
-
-    // Create training buttons and info texts    
-    for(let i=0;i<words.length; i++){
-      this.createButton(i, showBtn)
-    }
-  }
-
-  createButton(i, showBtn){
-    const div = document.createElement('div');
-    this.exampleListDiv.appendChild(div);
-    div.style.marginBottom = '10px';
-    
-    // Create Word Text
-    const wordText = document.createElement('span')
-
-    if(i==0 && !showBtn){
-      wordText.innerText = words[i].toUpperCase()+" (wake word) "
-    } else if(i==words.length-1 && !showBtn){
-      wordText.innerText = words[i].toUpperCase()+" (catchall sign) "
-    } else {
-      wordText.innerText = words[i].toUpperCase()+" "
-      wordText.style.fontWeight = "bold"
-    }
-    
-    
-    div.appendChild(wordText);
-
-    if(showBtn){
-      // Create training button
-      const button = document.createElement('button')
-      button.innerText = "Add Example"//"Train " + words[i].toUpperCase()
-      div.appendChild(button);
-
-      // Listen for mouse events when clicking the button
-      button.addEventListener('mousedown', () => this.training = i);
-      button.addEventListener('mouseup', () => this.training = -1);
-
-      // Create clear button to emove training examples
-      const btn = document.createElement('button')
-      btn.innerText = "Clear"//`Clear ${words[i].toUpperCase()}`
-      div.appendChild(btn);
-
-      btn.addEventListener('mousedown', () => {
-        console.log("clear training data for this label")
-        this.knn.clearClass(i)
-        this.infoTexts[i].innerText = " 0 examples"
-      })
-      
-      // Create info text
-      const infoText = document.createElement('span')
-      infoText.innerText = " 0 examples";
-      div.appendChild(infoText);
-      this.infoTexts.push(infoText);
-    }
-  }
-  
-  startTraining(){
-    if (this.timer) {
-      this.stopTraining();
-    }
-    var promise = this.video.play();
-
-    if(promise !== undefined){
-      promise.then(_ => {
-        console.log("Autoplay started")
-      }).catch(error => {
-        console.log("Autoplay prevented")
-      })
-    }
-    // this.timer = requestAnimationFrame(this.train.bind(this));
-  }
-  
-  stopTraining(){
-    this.video.pause();
-    cancelAnimationFrame(this.timer);
-  }
-  
-  train(){
-    if(this.videoPlaying){
-      // Get image data from video element
-      const image = dl.fromPixels(this.video);
-      
-      // Train class if one of the buttons is held down
-      if(this.training != -1){
-        // Add current image to classifier
-        this.knn.addImage(image, this.training)
-      }
-
-      const exampleCount = this.knn.getClassExampleCount()
-
-      if(Math.max(...exampleCount) > 0){
-        for(let i=0;i<words.length;i++){
-          if(exampleCount[i] > 0){
-            this.infoTexts[i].innerText = ` ${exampleCount[i]} examples`
-          }
-        }
-      }
-    }
-    this.timer = requestAnimationFrame(this.train.bind(this));
+    predButton.addEventListener('mousedown', () => {
+      this.startWebcam();
+      console.log("start predicting")      
+      this.startPredicting()
+    })
   }
 
   startPredicting(){
-    // stop training
-    if(this.timer){
-      this.stopTraining();
-    }
-
-    document.getElementById("status").style.background = "deepskyblue"
-    this.setStatusText("Status: Ready!")
+    console.log("Start predicting");
 
     this.video.play();
-
-    // this.pred = requestAnimationFrame(this.predict.bind(this))
+    this.pred = requestAnimationFrame(this.predict.bind(this));
   }
 
   pausePredicting(){
-    console.log("pause predicting")
-    this.setStatusText("Status: Paused Predicting")
+    console.log("Pause predicting")
     cancelAnimationFrame(this.pred)
   }
 
@@ -382,9 +230,8 @@ class Main {
     this.now = Date.now()
     this.elapsed = this.now - this.then
 
-    if(this.elapsed > this.fpsInterval){
-
-      this.then = this.now - (this.elapsed % this.fpsInterval)
+    if(this.elapsed > FPS_INTERVAL){
+      this.then = this.now - (this.elapsed % FPS_INTERVAL)
 
       if(this.videoPlaying){
         const exampleCount = this.knn.getClassExampleCount();
@@ -403,12 +250,12 @@ class Main {
                 && res.classIndex != this.previousPrediction
                 && res.classIndex != words.length-1){
 
-                this.tts.speak(words[i])
+                // this.tts.speak(words[i])
+                console.log(words[i]);
+                this.type(words[i]);
 
                 // set previous prediction so it doesnt get called again
                 this.previousPrediction = res.classIndex;
-
-
               }
             }
           })
@@ -418,134 +265,35 @@ class Main {
         }
       }
     }
+    // this.signText.innerText = text;
 
     this.pred = requestAnimationFrame(this.predict.bind(this))
   }
 
-  setStatusText(status){
-    document.getElementById("status").style.display = "block"
-    this.statusText.innerText = status
+  type(text){
+    //this.loader.style.display = "none"
+    this.signText.innerText += ' ' + text;
   }
 
-}
+  // Creates the button for speech recognition
+  createAudioBtn() {
+    var div = document.getElementById("audio-btn");
+    div.innerHTML = "";
 
-class TextToSpeech{
-  constructor(){
-    this.synth = window.speechSynthesis
-    this.voices = []
-    this.pitch = 1.0
-    this.rate = 0.9
+    var audioButton = document.createElement('button');
+    audioButton.innerText = "Start Speech Interpretation";
+    div.appendChild(audioButton);
 
-    this.textLine = document.getElementById("text")
-    this.ansText = document.getElementById("answerText")
-    this.loader = document.getElementById("loader")
+    audioButton.addEventListener('mousedown', () => {
+      var p = document.createElement('p');
+      p.innerText = 'Speak';
 
-    this.selectedVoice = 48 // this is Google-US en. Can set voice and language of choice
+      console.log("Waiting for response")
 
-    this.currentPredictedWords = []
-    this.waitTimeForQuery = 5000
-
-
-    this.synth.onvoiceschanged = () => {
-      this.populateVoiceList()
-    }
-    
+      var stt = new SpeechToText();
+      stt.SpeechToText();
+    });
   }
-
-  populateVoiceList(){
-    if(typeof speechSynthesis === 'undefined'){
-      console.log("no synth")
-      return
-    }
-    this.voices = this.synth.getVoices()
-
-    if(this.voices.indexOf(this.selectedVoice) > 0){
-      console.log(`${this.voices[this.selectedVoice].name}:${this.voices[this.selectedVoice].lang}`)
-    } else {
-      //alert("Selected voice for speech did not load or does not exist.\nCheck Internet Connection")
-    }
-    
-  }
-
-  clearPara(queryDetected){
-    this.textLine.innerText = '';
-    this.ansText.innerText = ''
-    if(queryDetected){
-      this.loader.style.display = "block"
-    } else {
-      this.loader.style.display = "none"
-      this.ansText.innerText = "No query detected"
-      main.previousPrediction = -1
-    }
-    this.currentPredictedWords = []
-  }
-
-  speak(word){
-
-    if(word == 'alexa'){
-      console.log("clear para")
-      this.clearPara(true);
-
-      setTimeout(() => {
-        // if no query detected after alexa is signed
-        if(this.currentPredictedWords.length == 1){
-          this.clearPara(false)
-        }
-      }, this.waitTimeForQuery)
-    } 
-
-    if(word != 'alexa' && this.currentPredictedWords.length == 0){
-      console.log("first word should be alexa")
-      console.log(word)
-      return
-    }
-
-    // if(endWords.includes(word) && this.currentPredictedWords.length == 1 && (word != "hello" && word != "bye")){
-    //   console.log("end word detected early")
-    //   console.log(word)
-    //   return;
-    // }
-
-    if(this.currentPredictedWords.includes(word)){
-      // prevent word from being detected repeatedly in phrase
-      console.log("word already been detected in current phrase")
-      return
-    }
-
-
-    this.currentPredictedWords.push(word)
-
-
-    this.textLine.innerText += ' ' + word;
-
-
-    var utterThis = new SpeechSynthesisUtterance(word)
-
-    utterThis.onend = (evt) => {
-      if(endWords.includes(word)){
-         //if last word is one of end words start listening for transcribing
-        console.log("this was the last word")
-
-        main.setStatusText("Status: Waiting for Response")
-
-        let stt = new SpeechToText()
-      }
-    }
-
-    utterThis.onerror = (evt) => {
-      console.log("Error speaking")
-    }
-
-    utterThis.voice = this.voices[this.selectedVoice]
-
-    utterThis.pitch = this.pitch
-    utterThis.rate = this.rate
-
-    this.synth.speak(utterThis)
-
-  }
-
-
 }
 
 class SpeechToText{
@@ -568,7 +316,6 @@ class SpeechToText{
     this.recognition.onstart = () => {
       this.recognizing = true;
       console.log("started recognizing")
-      main.setStatusText("Status: Transcribing")
     }
 
     this.recognition.onerror = (evt) => {
@@ -583,7 +330,6 @@ class SpeechToText{
       }
       this.recognizing = false;
 
-      main.setStatusText("Status: Finished Transcribing")
       // restart prediction after a pause
       setTimeout(() => {
         main.startPredicting()
@@ -596,7 +342,6 @@ class SpeechToText{
         return;
       }
    
-
       for (var i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
           this.finalTranscript += event.results[i][0].transcript;
@@ -604,7 +349,6 @@ class SpeechToText{
           interim_transcript += event.results[i][0].transcript;
         }
       }
-
 
       this.interimType(interim_transcript)
       this.type(this.finalTranscript)
@@ -659,16 +403,12 @@ class SpeechToText{
 var main = null;
 
 window.addEventListener('load', () => {
-
+  // Check if the app is opened in compatible browser
   var ua = navigator.userAgent.toLowerCase()
-
   if(!(ua.indexOf("chrome") != -1 || ua.indexOf("firefox")!= -1)){
     alert("Please visit in the latest Chrome or Firefox")
     return
   } 
-
-
   main = new Main()
-
 });
 

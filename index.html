@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>British Sign Language Translator</title>
@@ -10,24 +9,62 @@
 </head>
 
 <body>
-  <div id="status">
-    <p id="status-text">Status: Not Ready</p>
-  </div>
-  
   <div class="split-left">
-    <h1 id="text" class="lables">Sign Language Interpretation<br></h1>
+    <h1 id="text" class="labels">Sign Language Interpretation<br></h1>
     <video id="video" src='' muted autoplay playsinline></video>
     <div class="left-btn" id="action-btn"></div> <br>
-    <textarea> </textarea>
+    <textarea id="signText"> </textarea>
+    <div class="left-btn" id="training-btn"></div> <br>
   </div>
-  
+
   <div class="split-right">
-    <h1 id="text" class="lables">Speech Interpretation<br></h1>
+    <h1 id="text" class="labels">Speech Interpretation<br></h1>
     <img class="talk_img" src="img/talk.svg">    
     <div id="loader"></div>  
     <div id="audio-btn"></div>
     <span id="interimText"></span> <br>
     <textarea id="answerText"> </textarea> 
   </div>
+
+  <div id="launchModal" class="modal"> 
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Training</h2>
+      </div>
+      <div class="flex flex-wrap centered">
+        <div class="modal-info">
+          <p> Some info
+          </p>
+        </div>
+        <div class="modal-info">
+          <video id="training-video" src='' muted autoplay playsinline></video>
+          <div id="training-list">
+          </div>
+        </div>
+      </div>
+      <button id="close">Done!</button>
+    </div>
+  </div>
+
+  <script>
+    var modal = document.getElementById("launchModal");
+    var close = document.getElementById("close");
+    var trainVid = document.getElementById("training-video")
+
+    // When the user clicks on <span> (x), close the modal
+    close.onclick = function() {
+      modal.style.display = "none";
+      trainVid.pause();
+    }
+
+    // When the user clicks anywhere outside of the modal, close it
+    window.onclick = function(event) {
+      if (event.target == modal) {
+        modal.style.display = "none";
+        trainVid.pause();
+      }
+    }
+  </script>
+
 </body>
 </html>
