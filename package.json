@@ -1,20 +1,16 @@
 {
   "name": "sign-language-translation",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "license": "uni",
   "dependencies": {
     "deeplearn": "^0.5.0",
     "deeplearn-knn-image-classifier": "^0.3.0",
-    "pre-commit": "^1.2.2",
     "webpack": "^4.41.4"
   },
   "scripts": {
     "start": "budo main.js --live --host localhost",
     "build": "browserify main.js "
   },
-  "pre-commit": [
-    "build"
-  ],
   "browserify": {
     "transform": [
       [
