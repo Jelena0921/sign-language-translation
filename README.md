@@ -16,6 +16,6 @@ npm install
 npm start
 ```
 
-2. Open localhost:9966 in Chrome browser.
+2. Open http://localhost:9966/ in Chrome browser.
 3. Allow permission to your webcam and microphone.
 4. Train the system by following instructions provided in the application.
