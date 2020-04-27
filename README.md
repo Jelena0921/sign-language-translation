@@ -1,11 +1,21 @@
-# Sign-Language-Translation
+# Sign Language Translator
+This is a web application allowing real-time sign language and speech interpretation.
 
-The aim of this project is to create a real-time British Sign Language (BSL) translator
-using a regular computer camera. The user should be able to sign in front of their device
-and the system should provide audio or text translation as the person is signing. 
 
-To use the code, first install the JavaScript dependencies by running
-npm install
+## Installation
 
-Then start the local budo web server by running
+Install the JavaScript dependencies by running: npm install 
+```bash
+npm install 
+```
+
+## Usage
+
+1. Start a local web server by running: npm start. This will start a budo server on localhost:9966.
+```bash
 npm start
+```
+
+2. Open localhost:9966 in Chrome browser.
+3. Allow permission to your webcam and microphone.
+4. Train the system by following instructions provided in the application.
