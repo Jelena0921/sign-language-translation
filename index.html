@@ -12,7 +12,8 @@
   <div class="split-left">
     <h1 id="text" class="labels">Sign Language Interpretation<br></h1>
     <video id="video" src='' muted autoplay playsinline></video>
-    <div class="left-btn" id="action-btn"></div> <br>
+    <div class="left-btn" id="action-btn"></div>
+    <span id="pause-indicator"></span><br>
     <textarea id="signText"> </textarea>
     <div class="left-btn" id="training-btn"></div> <br>
   </div>
@@ -20,7 +21,6 @@
   <div class="split-right">
     <h1 id="text" class="labels">Speech Interpretation<br></h1>
     <img class="talk_img" src="img/talk.svg">    
-    <div id="loader"></div>  
     <div id="audio-btn"></div>
     <span id="interimText"></span> <br>
     <textarea id="answerText"> </textarea> 
@@ -41,11 +41,12 @@
             <b>Instructions:</b>
             <ul>
               <li>Allow access to webcam and microphone.</li>
-              <li>Train the gestures using the interface on the right, please make sure to train minimum 40 frames.</li>
-              <li>If you do not know sign language, think of your own gestures. Please make sure the gestures are static (require minimal movement).</li>
+              <li>Train the gestures using the interface on the right, please make sure to train around 40 to 80 frames.</li>
+              <li>For the "_BASE_", please be still with no gestures, to allow the system learn your resting position.</li>
+              <li>For the "_PAUSE_", please cover the camera with your hand - this will allow pausing prediction when required. Alternative way to pause sign translation is clicking on the video.</li>
+              <li>Please make sure the gestures are static (require minimal movement) and are sufficiently different from each other.</li>
               <li>Once complete, press on the button below.</li>
             </ul>
-            Enjoy!
             </p>
           </div>
         </div>

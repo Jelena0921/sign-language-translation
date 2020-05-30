@@ -1,18 +1,18 @@
-import * as kic from 'deeplearn-knn-image-classifier';
-import * as dl from 'deeplearn';
+var kic = require('deeplearn-knn-image-classifier');
+var dl = require('deeplearn');
 
 // Webcam Image size. Must be 227. 
 const IMAGE_SIZE = 227;
 // K value for KNN
-const TOPK = 15;
-const predictionThreshold = 0.9;
+const TOPK = 10;
+const predictionThreshold = 0.99;
 
 // Number of frames per second (used to restrict prediction rate)
-const FPS = 5; 
+const FPS = 3; 
 const FPS_INTERVAL = 1000/FPS
 
 // The vocabulary, add/remove desired words here
-var words = ["Hello", "Thank you!", "Nice", "Good", "Morning", "Name", "Yes", "No", "Tea"];
+var words = ["", "_PAUSE_", "Hello", "good", "morning", "my", "name", "nice", "Thank you!", "tea"];
 
 class Main {
   constructor(){
@@ -36,10 +36,11 @@ class Main {
     this.textLine = document.getElementById("text")    
     this.video = document.getElementById('video');
     this.trainingVideo = document.getElementById('training-video');
-    this.addWordForm = document.getElementById("add-word")
+    this.addWordForm = document.getElementById("add-word");
+    this.pauseLine = document.getElementById("pause-indicator");
 
     this.video.addEventListener('mousedown', () => {
-      // click on video to go back to training buttons
+      // click on video to pause prediction
       main.pausePredicting();
     })
     this.loadKNN();
@@ -88,7 +89,12 @@ class Main {
     
     // Create Word Text
     const wordText = document.createElement('span');
-    wordText.innerText = words[i].toUpperCase()+" "
+    if (i != 0){
+      wordText.innerText = words[i].toUpperCase()+" "
+    } else {
+      wordText.innerText = "_BASE_"
+    }
+
     wordText.style.fontWeight = "bold"
     div.appendChild(wordText);
 
@@ -154,15 +160,16 @@ class Main {
       
       // Train class if one of the buttons is held down
       if(this.training != -1){
-        // Add current image to classifier
+        const image = dl.fromPixels(this.trainingVideo);
         this.knn.addImage(image, this.training)
-      }
-      const exampleCount = this.knn.getClassExampleCount()
 
-      if(Math.max(...exampleCount) > 0){
-        for(let i=0;i<words.length;i++){
-          if(exampleCount[i] > 0){
-            this.infoTexts[i].innerText = ` ${exampleCount[i]} trained frames`
+        const exampleCount = this.knn.getClassExampleCount()
+
+        if(Math.max(...exampleCount) > 0){
+          for(let i=0;i<words.length;i++){
+            if(exampleCount[i] > 0){
+              this.infoTexts[i].innerText = ` ${exampleCount[i]} trained frames`
+            }
           }
         }
       }
@@ -209,6 +216,7 @@ class Main {
 
     predButton.addEventListener('mousedown', () => {
       this.startWebcam();
+      this.signText.value = "";
       console.log("start predicting")      
       this.startPredicting()
     })
@@ -216,7 +224,7 @@ class Main {
 
   startPredicting(){
     console.log("Start predicting");
-
+    this.pauseLine.innerText = "";
     this.video.play();
     this.pred = requestAnimationFrame(this.predict.bind(this));
   }
@@ -224,6 +232,8 @@ class Main {
   pausePredicting(){
     console.log("Pause predicting")
     cancelAnimationFrame(this.pred)
+    this.videoPlaying = false;
+    this.pauseLine.innerText = "PAUSED";
   }
 
   predict(){
@@ -235,27 +245,26 @@ class Main {
 
       if(this.videoPlaying){
         const exampleCount = this.knn.getClassExampleCount();
-
         const image = dl.fromPixels(this.video);
+
+        var sentence = this.signText.value
 
         if(Math.max(...exampleCount) > 0){
           this.knn.predictClass(image)
           .then((res) => {
-            for(let i=0;i<words.length;i++){
+            if(res.confidences[res.classIndex] > predictionThreshold 
+              && res.classIndex != this.previousPrediction){
+              
+              // if not 'Pause'
+              if(res.classIndex != 1){
+                console.log(words[res.classIndex]);
+                sentence += " " + words[res.classIndex]
+                this.type(sentence);
 
-              // if matches & is above threshold & isnt same as prev prediction
-              // and is not the last class which is a catch all class
-              if(res.classIndex == i 
-                && res.confidences[i] > predictionThreshold 
-                && res.classIndex != this.previousPrediction
-                && res.classIndex != words.length-1){
-
-                // this.tts.speak(words[i])
-                console.log(words[i]);
-                this.type(words[i]);
-
-                // set previous prediction so it doesnt get called again
+                // set previous prediction so it doesn't get called again
                 this.previousPrediction = res.classIndex;
+              } else {
+                main.pausePredicting();
               }
             }
           })
@@ -265,14 +274,11 @@ class Main {
         }
       }
     }
-    // this.signText.innerText = text;
-
     this.pred = requestAnimationFrame(this.predict.bind(this))
   }
 
   type(text){
-    //this.loader.style.display = "none"
-    this.signText.innerText += ' ' + text;
+    this.signText.value = text;
   }
 
   // Creates the button for speech recognition
@@ -300,22 +306,19 @@ class SpeechToText{
   constructor(){
     this.interimTextLine = document.getElementById("interimText")
     this.textLine = document.getElementById("answerText")
-    this.loader = document.getElementById("loader")
     this.finalTranscript = ''
-    this.recognizing = false
+    this.recognising = false
 
     this.recognition = new webkitSpeechRecognition();
 
     this.recognition.continuous = true;
     this.recognition.interimResults = true;
 
-    this.recognition.lang = 'en-US'
-
-    this.cutOffTime = 15000 // cut off speech to text after
+    this.recognition.lang = 'en-GB'
 
     this.recognition.onstart = () => {
-      this.recognizing = true;
-      console.log("started recognizing")
+      this.recognising = true;
+      console.log("started recognising")
     }
 
     this.recognition.onerror = (evt) => {
@@ -323,17 +326,14 @@ class SpeechToText{
     }
 
     this.recognition.onend = () => {
-      console.log("stopped recognizing")
+      console.log("stopped recognising")
       if(this.finalTranscript.length == 0){
         this.type("No response detected")
-
       }
-      this.recognizing = false;
+      this.recognising = false;
 
       // restart prediction after a pause
-      setTimeout(() => {
-        main.startPredicting()
-      }, 1000)
+      main.startPredicting()
     }
 
     this.recognition.onresult = (event) => {
@@ -354,14 +354,7 @@ class SpeechToText{
       this.type(this.finalTranscript)
     }
 
-    setTimeout(()=>{
-      this.startListening();
-    },0)
-    
-
-    setTimeout(()=>{
-      this.stopListening()
-    },this.cutOffTime)
+    this.startListening();
   }
 
   startListening(){
@@ -390,12 +383,10 @@ class SpeechToText{
   }
 
   interimType(text){
-    this.loader.style.display = "none"
     this.interimTextLine.innerText = text
   }
 
   type(text){
-    this.loader.style.display = "none"
     this.textLine.innerText = text;
   }
 }
